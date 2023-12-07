@@ -1,4 +1,5 @@
 mod smartdevice;
 mod smarthouse;
 
-pub use smartdevice::SmartDevice;
+pub use smartdevice::{DynamicSmartDevice, SmartDevice, SmartSocket, SmartThermometer};
+pub use smarthouse::SmartHouse;
