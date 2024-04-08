@@ -1,74 +1,18 @@
+use crate::DynamicSmartDevice;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
+use thiserror::Error;
 
-use crate::DynamicSmartDevice;
-
-#[derive(Debug)]
-pub struct RoomAlreadyExistsError {
-    room_name: String,
-}
-
-impl fmt::Display for RoomAlreadyExistsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Room already exists: {}", self.room_name)
-    }
-}
-
-impl Error for RoomAlreadyExistsError {}
-
-#[derive(Debug)]
-pub struct NoSuchRoomError {
-    room_name: String,
-}
-
-impl fmt::Display for NoSuchRoomError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "no such room: {}", self.room_name)
-    }
-}
-
-impl Error for NoSuchRoomError {}
-
-#[derive(Debug)]
-pub struct NoSuchDeviceError {
-    device_name: String,
-}
-
-impl fmt::Display for NoSuchDeviceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "no such device: {}", self.device_name)
-    }
-}
-
-impl Error for NoSuchDeviceError {}
-
-#[derive(Debug)]
-pub struct DeviceAlreadyExistsError {
-    device_name: String,
-}
-
-impl fmt::Display for DeviceAlreadyExistsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "device already exists: {}", self.device_name)
-    }
-}
-
-impl Error for DeviceAlreadyExistsError {}
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SmartHouseError {
-    RoomExists(RoomAlreadyExistsError),
-    RoomNotFound(NoSuchRoomError),
-    DeviceNotFound(NoSuchDeviceError),
-    DeviceAlreadyExists(DeviceAlreadyExistsError),
-}
-
-impl fmt::Display for SmartHouseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
+    #[error("room {} already exists", .0)]
+    RoomExists(String),
+    #[error("room {} does not found", .0)]
+    RoomNotFound(String),
+    #[error("device {} does not found", .0)]
+    DeviceNotFound(String),
+    #[error("device {} already exists", .0)]
+    DeviceAlreadyExists(String),
 }
 
 #[derive(Default)]
@@ -77,15 +21,13 @@ pub struct SmartHouse {
 }
 
 impl SmartHouse {
-    pub fn add_room(&mut self, name: &str) -> Result<(), RoomAlreadyExistsError> {
+    pub fn add_room(&mut self, name: &str) -> Result<(), SmartHouseError> {
         match self.data.entry(name.to_string()) {
             Entry::Vacant(e) => {
                 e.insert(HashMap::new());
                 Ok(())
             }
-            Entry::Occupied(_) => Err(RoomAlreadyExistsError {
-                room_name: name.to_string(),
-            }),
+            Entry::Occupied(_) => Err(SmartHouseError::RoomExists(name.to_string())),
         }
     }
 
@@ -95,14 +37,10 @@ impl SmartHouse {
         device: DynamicSmartDevice,
     ) -> Result<(), SmartHouseError> {
         match self.data.get_mut(room) {
-            None => Err(SmartHouseError::RoomNotFound(NoSuchRoomError {
-                room_name: room.to_string(),
-            })),
+            None => Err(SmartHouseError::RoomNotFound(room.to_string())),
             Some(room) => match room.entry(device.get_name().to_string()) {
                 Entry::Occupied(_) => Err(SmartHouseError::DeviceAlreadyExists(
-                    DeviceAlreadyExistsError {
-                        device_name: device.get_name().to_string(),
-                    },
+                    device.get_name().to_string(),
                 )),
                 Entry::Vacant(_) => {
                     room.insert(device.get_name().to_string(), device);
@@ -121,12 +59,10 @@ impl SmartHouse {
     pub fn devices(
         &self,
         room: &str,
-    ) -> Result<&HashMap<String, DynamicSmartDevice>, NoSuchRoomError> {
+    ) -> Result<&HashMap<String, DynamicSmartDevice>, SmartHouseError> {
         match self.data.get(room) {
             Some(devices) => Ok(devices),
-            None => Err(NoSuchRoomError {
-                room_name: room.to_string(),
-            }),
+            None => Err(SmartHouseError::RoomNotFound(room.to_string())),
         }
     }
 
@@ -149,13 +85,9 @@ impl SmartHouse {
         match self.data.get(room) {
             Some(devices) => match devices.get(device_name) {
                 Some(d) => Ok(std::format!("it is report for [{d}] in room [{room}]")),
-                None => Err(SmartHouseError::DeviceNotFound(NoSuchDeviceError {
-                    device_name: device_name.to_string(),
-                })),
+                None => Err(SmartHouseError::DeviceNotFound(device_name.to_string())),
             },
-            None => Err(SmartHouseError::RoomNotFound(NoSuchRoomError {
-                room_name: room.to_string(),
-            })),
+            None => Err(SmartHouseError::RoomNotFound(room.to_string())),
         }
     }
 }
